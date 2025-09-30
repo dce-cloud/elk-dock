@@ -1,9 +1,8 @@
-networks:
-  backend:
-    name: "${DOCKER_BACKEND_NETWORK_NAME}"
-    driver: ${DOCKER_NETWORK_DRIVER}
-    ipam:
-      config:
-        - subnet: "${DOCKER_BACKEND_SUBNET}"
-          gateway: "${DOCKER_BACKEND_SUBNET_GATEWAY}"
-
+include:
+  - ../../../conf/compose/docker-compose-common.yml
+  - ./docker-compose-elasticsearch.yml
+  - ./docker-compose-kibana.yml
+  - ./docker-compose-logstash.yml
+  - ./docker-compose-busybox.yml
+  # - ./docker-compose-filebeat.yml
+  # - ./docker-compose-metricbeat.yml

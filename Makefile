@@ -17,21 +17,49 @@ echo_init_network:
 	@echo ${DOCKER} network create --driver ${NETWORKS_DRIVER} --subnet=${BACKEND_SUBNET} --gateway=${BACKEND_SUBNET_GATEWAY} ${BACKEND_NETWORK_NAME}
 	@echo ${DOCKER} network ls
 
-echo_init_volume:
-	@echo ${DOCKER} volume ls
-	@echo ${DOCKER} volume create --name xx
-	@echo ${DOCKER} volume ls
 
-.PHONY: rm_all_containers prune_docker
-rm_all_containers:
-	@${DOCKER} ps -a -q | xargs ${DOCKER} rm -f
+.PHONY: build start create_data_dir reset
+build:
+	@${DOCKER_COMPOSE_BUILD} ${CONTAINERS}
 
-.PHONY: rm_single
-rm_single:
-	@rm -rf ${DATA_HOST_PATH}/single
+start:
+	@${DOCKER_COMPOSE_UP} -d ${CONTAINERS}
 
-.PHONY: enter_apache_doris_fe enter_apache_doris_be
-enter_apache_doris_fe:
-	@${DC_ENTER} ${APACHE_DORIS_FE_CONTAINER_NAME} bash
-enter_apache_doris_be:
-	@${DC_ENTER} ${APACHE_DORIS_BE_CONTAINER_NAME} bash
+create_data_dir:
+	mkdir -p ${DATA_HOST_PATH}/${ES_CONTAINER_NAME}/*
+	mkdir -p ${DATA_HOST_PATH}/${KIBANA_CONTAINER_NAME}/*
+
+	chmod -R 777 ${DATA_HOST_PATH}/${ES_CONTAINER_NAME}
+	chmod -R 777 ${DATA_HOST_PATH}/${KIBANA_CONTAINER_NAME}
+	
+reset:
+	@${DOCKER_COMPOSE_STOP}
+	rm -rf ${DATA_HOST_PATH}/${ES_CONTAINER_NAME}/*
+	rm -rf ${DATA_HOST_PATH}/${KIBANA_CONTAINER_NAME}/*
+	rm -rf ${ES_PATH}/certs/*
+	@${DOCKER_COMPOSE_DOWN}
+
+# Elasticsearch ############################################
+.PHONY: es_en es_runing es_reset_password kibana_enrollment_token es_copy_ca es_service_token logstash_en
+es_en:
+	${DOCKER_COMPOSE_EXEC} ${ES_CONTAINER_NAME} bash
+es_runing:
+	@${DOCKER_COMPOSE_EXEC} ${ES_CONTAINER_NAME} curl --cacert ${CONTAINER_CA_CRT_PATH} -u elastic:${ELASTIC_PASSWORD} https://localhost:9200
+es_reset_password:
+	@${DOCKER_COMPOSE_EXEC} ${ES_CONTAINER_NAME} /usr/share/elasticsearch/bin/elasticsearch-reset-password -u ${ELASTIC_USERNAME}
+kibana_enrollment_token:
+	@${DOCKER_COMPOSE_EXEC} -u root ${ES_CONTAINER_NAME} /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
+es_copy_ca:
+	@${DOCKER} cp ${ES_CONTAINER_NAME}:/usr/share/elasticsearch/config/certs/http_ca.crt ${ES_PATH}
+es_service_token:
+	@${DOCKER_COMPOSE_EXEC} ${ES_CONTAINER_NAME} /usr/share/elasticsearch/bin/elasticsearch-service-tokens create elastic/kibana my-token
+logstash_en:
+	${DOCKER_COMPOSE_EXEC} ${LOGSTASH_CONTAINER_NAME} bash
+elk_box_en:
+	${DOCKER_COMPOSE_EXEC} ${ELK_BOX_CONTAINER_NAME} sh
+# Kibana ###################################################
+.PHONY:  kibana_en kibana_verification_code
+kibana_en:
+	${DOCKER_COMPOSE_EXEC} ${KIBANA_CONTAINER_NAME} bash
+kibana_verification_code:
+	${DOCKER_COMPOSE_EXEC} ${KIBANA_CONTAINER_NAME} /bin/kibana-verification-code
